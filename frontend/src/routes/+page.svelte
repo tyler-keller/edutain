@@ -26,7 +26,7 @@
     {#if $user}
       <div class="flex flex-row justify-center space-x-8 sm:space-x-16">
         <a href="/create-lesson">
-          <button class='font-bold rounded-md text-white p-4 bg-green-600'>Enter Topic</button>
+          <button class='font-bold rounded-md text-white p-4 bg-green-600'>Upload EPUB</button>
         </a>
         <button class="p-4 bg-red-500 text-white rounded-lg " on:click={() => signOut(auth)}>Sign out</button>
       </div>

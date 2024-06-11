@@ -1,0 +1,51 @@
+flashcards:
+  - question: What distinguishes classical computers from quantum computers?
+    answer: Classical computers manipulate information as bits (0 or 1), while quantum computers operate on qubits, which are based on complex-number values.
+
+  - question: What are qubits and how do they differ from classical bits?
+    answer: Qubits can be in a superposition of 0 and 1 simultaneously, represented by complex-number values. Classical bits are either 0 or 1.
+
+  - question: What is a unit vector in the context of quantum computation?
+    answer: A unit vector is a vector in a fixed vector space of dimension 2^n that represents the state of a quantum system.
+
+  - question: What is a superposition in quantum mechanics?
+    answer: A superposition is a state where a quantum system exists simultaneously in multiple basis states, each with a certain amplitude.
+
+  - question: What is a basis state?
+    answer: A basis state is one of the fixed states that form a linear-algebra basis, with each basis state corresponding to a specific configuration that can be observed.
+
+  - question: What is the significance of the squared absolute value of an amplitude in quantum mechanics?
+    answer: The squared absolute value of an amplitude gives the measurement probability of observing the corresponding basis state.
+
+  - question: What is a Hilbert space?
+    answer: A Hilbert space is a mathematical concept that represents the complete vector space used in quantum mechanics, supporting the Pythagorean theorem for distances.
+
+  - question: What are unitary operations?
+    answer: Unitary operations are linear, invertible transformations that map points on the unit sphere to other points on the unit sphere in quantum mechanics.
+
+  - question: How is input encoded in a quantum computation model?
+    answer: Input is encoded by the choice of the unitary transformation applied to the initial state, effectively embedding the input within the program itself.
+
+  - question: How is information outputted in quantum computation?
+    answer: Information is outputted through measurement, which collapses the quantum state into one of the basis states with a probability proportional to the squared amplitude of the state.
+
+  - question: What role does linear algebra play in understanding quantum algorithms?
+    answer: Linear algebra provides the mathematical framework for representing and manipulating quantum states and operations.
+
+  - question: What is the goal of studying quantum algorithms according to the text?
+    answer: The goal is to explore and understand the beautiful ideas within quantum algorithms, regardless of when or if quantum computers are built.
+
+  - question: What is the primary mathematical tool required to understand quantum algorithms?
+    answer: The primary mathematical tool required is linear algebra, including vectors, matrices, and their basic properties.
+
+  - question: What is the central question regarding the possibility of quantum computers?
+    answer: The central question is whether it is possible to build computers that are inherently quantum, exploiting the power and peculiarities of quantum mechanics.
+
+  - question: Why are the probabilities in quantum mechanics proportional to the squares of the amplitudes?
+    answer: Probabilities are proportional to the squares of the amplitudes due to the mathematical properties of unit vectors and the Pythagorean theorem in Euclidean space.
+
+  - question: What is the significance of the unit sphere in quantum mechanics?
+    answer: The unit sphere represents the set of all possible states of a quantum system, with each state being a point on the sphere.
+
+  - question: What is the importance of quantum algorithms even if quantum computers are not built soon?
+    answer: Quantum algorithms contain beautiful and interesting ideas that are valuable to understand, regardless of the timeline for building quantum computers.
