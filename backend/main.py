@@ -5,7 +5,6 @@ import os
 import sys
 from PIL import Image
 from pix2tex.cli import LatexOCR
-from urllib.parse import urljoin
 
 
 def epub_to_markdown(epub_file, output_dir):
@@ -63,8 +62,8 @@ def epub_to_markdown(epub_file, output_dir):
 def convert_image_to_latex(image_path):
     img = Image.open(image_path)
     model = LatexOCR()
-    print(model(img))
-                
+    return model(img)
+
 
 if __name__ == "__main__":
     # Usage example
@@ -72,3 +71,9 @@ if __name__ == "__main__":
     # epub_file = "input/book.epub"
     output_dir = f"output/{epub_file.split('/')[-1].replace('.epub', '')}-chapters"
     epub_to_markdown(epub_file, output_dir)
+
+    # Convert images to LaTeX
+    for img in os.listdir(f"{output_dir}/images"):
+        img_path = f"{output_dir}/images/{img}"
+        latex_code = convert_image_to_latex(img_path)
+        print(f"Image: {img_path}\nLatex: {latex_code}\n")
