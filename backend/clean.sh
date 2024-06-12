@@ -1,1 +1,1 @@
-rm -rf output/chapters/
+rm -rf output/*
