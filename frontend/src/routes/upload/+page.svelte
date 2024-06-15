@@ -37,7 +37,7 @@
 </script>
 
 <div class="flex flex-col items-center h-screen bg-white dark:bg-zinc-900">
-    <h1 class="text-black dark:text-white text-2xl text-center p-6 font-bold">Create Lesson</h1>
+    <h1 class="text-black dark:text-white text-2xl text-center p-6 font-bold">Upload EPUB</h1>
 
     {#if $user}
         <div class="flex flex-col items-center h-screen">
@@ -48,18 +48,11 @@
                 <div class="basis-1/4"></div>
             {/if}
             <div class="p-4 rounded-md dark:bg-zinc-600 bg-slate-200">
-                <input 
-                    type="text" 
-                    placeholder="Enter Topic" 
-                    class="p-2 m-2 border border-gray-300 rounded-md dark:bg-zinc-700 dark:text-white"
-                    bind:value={topic} 
-                    on:keydown={handleKeyDown}
-                />
                 <button 
                     class="p-2 m-2 bg-green-500 text-white rounded-md hover:bg-green-600"
                     on:click={createLesson}
                 >
-                    Enter
+                    +
                 </button>
                 {#if topicIsTooLong}
                     <p class="text-red-500 dark:text-red-400">Topic must be less than 32 characters.</p>
