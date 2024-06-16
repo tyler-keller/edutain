@@ -31,7 +31,7 @@ if __name__ == '__main__':
     #     print(datum)
     pretty_data = pprint.pformat(data, compact=True)
     print(pretty_data)
-    print(data['title'])
+    # print(data.get('title', 'No title found'))
     # deck_name = data['deck_name']
     # deck_description = data['deck_description']
     # deck = create_anki_deck(deck_name, deck_description)
