@@ -10,7 +10,7 @@ with open('output/deep-learning-chapters-latex/chapter005.md', 'r') as file:
   num_tokens = len(tokens)
   print(f"Number of tokens in your text: {num_tokens}")
 
-  split_tokens = [tokens[i:i+7168] for i in range(0, num_tokens, 7168)]
+  split_tokens = [tokens[i:i+6144] for i in range(0, num_tokens, 6144)]
 
   for i, split_token in enumerate(split_tokens):
 
@@ -20,8 +20,19 @@ with open('output/deep-learning-chapters-latex/chapter005.md', 'r') as file:
     stream = ollama.chat(
         model='llama3',
         messages=[
-          {'role': 'system', 'content': 'You are an AI assistant helping a user retain the knowledge that they\'re learning in their book. The user will give pieces of this book will be given to you. You are to take those pieces and identify key topics. You will then generate flashcards for the user in a YAML format:'},
-          {'role': 'user', 'content': f'Book: Deep Learning, Chapter: Machine Learning Basics, Text: {chapter_text}'},
+          {'role': 'system', 'content': '''You are an AI assistant that summarizes book content into flashcards. 
+           The user will give pieces of the book. You are to take those pieces and identify key topics. 
+           Only output the chapter\'s content in YAML formatted flashcards. They should be in the format of:
+           ```yaml
+           - front: "What is the capital of France?"
+             back: "Paris"
+           - front: "What is the capital of Spain?"
+             back: "Madrid"
+           ```
+           '''},
+          {'role': 'user', 'content': f'''# **Book**: Deep Learning
+           ## **Chapter**: Machine Learning Basics
+           **Text**: {chapter_text}'''},
         ],
         stream=True,
     )
