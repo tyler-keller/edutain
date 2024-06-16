@@ -6,9 +6,20 @@ from markdownify import markdownify as md
 from bs4 import BeautifulSoup
 from PIL import Image
 from pix2tex.cli import LatexOCR
+import genanki
+import random
+
+# flow:
+# upload epub
+# convert epub to markdown
+# convert images to latex
+# create anki deck from epub title and type
+# query gpt-4o for flashcard content for each chapter
+# create anki cards from gpt-4o content
+# upload anki deck
+
 
 def epub_to_markdown(epub_file, output_dir):
-    # Ensure output directory exists
     os.makedirs(output_dir, exist_ok=True)
     
     book = epub.read_epub(epub_file)
@@ -16,31 +27,26 @@ def epub_to_markdown(epub_file, output_dir):
     
     for item in book.get_items():
         if isinstance(item, epub.EpubHtml):
-            # Convert HTML content to Markdown
             chapter_title = item.get_name().strip().replace(".xhtml", "")
             for x in ['/', '_']:
                 chapter_title = chapter_title.replace(x, '-')
             content = item.get_content()
 
-            # Extract and save images
             soup = BeautifulSoup(content, 'html.parser')
             for img in soup.find_all('img'):
                 img_src = img['src']
                 try:
-                    # Resolve the full path of the image
                     img_path = img_src.replace('../', '')
                     img_file = book.get_item_with_href(img_path)
                     if img_file is not None:
                         img_data = img_file.get_content()
                         img_name = os.path.basename(img_src)
                         
-                        # Save image to the output directory
                         os.makedirs(f'{output_dir}/images', exist_ok=True)
                         img_output_path = os.path.join(f'{output_dir}/images', img_name)
                         with open(img_output_path, 'wb') as out_img_file:
                             out_img_file.write(img_data)
                         
-                        # Update image src in the content
                         img['src'] = os.path.join('images', img_name)
                     else:
                         print(f"Image file not found for: {img_src}")
@@ -49,12 +55,24 @@ def epub_to_markdown(epub_file, output_dir):
 
             markdown_content = md(str(soup))
             
-            # Create output file name
             output_file = os.path.join(output_dir, f"{chapter_title}.md")
             
-            # Write to the output file
             with open(output_file, "w") as file:
                 file.write(markdown_content)
+
+def create_anki_deck(deck_name, deck_description, cards):
+    deck = genanki.Deck(
+            model_id=str([random.randint(0, 9) for _ in range(30)]), 
+            name=deck_name, 
+            description=deck_description
+        )
+    for card in cards:
+        note = genanki.Note(
+            model=deck.model(),
+            fields=card
+        )
+        deck.add_note(note)
+    return deck
 
 def convert_image_to_latex(image_path):
     img = Image.open(image_path)
@@ -62,7 +80,6 @@ def convert_image_to_latex(image_path):
     return model(img)
 
 def convert_markdown_images(markdown_file, latex_output_dir):
-    # Ensure LaTeX output directory exists
     print(f'Converting images in {markdown_file}')
     os.makedirs(latex_output_dir, exist_ok=True)
     
@@ -80,7 +97,6 @@ def convert_markdown_images(markdown_file, latex_output_dir):
             print(f"Converted image to LaTeX: {img_path} -> {latex_code}")
             lines[i] = f"$\n{latex_code}\n$\n"
 
-    # Write the updated lines to the LaTeX output directory
     base_name = os.path.basename(markdown_file)
     latex_output_file = os.path.join(latex_output_dir, base_name)
     with open(latex_output_file, 'w') as file:
