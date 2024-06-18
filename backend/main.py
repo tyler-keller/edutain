@@ -194,71 +194,15 @@ def markdown_to_flashcards(book_title, input_dir, output_path, model_id='llama3'
     print(f"Successfully created Anki deck at {output_path}")
 
 
-# def markdown_to_flashcards(book_title, input_dir, output_path, model_id='llama3', num_ctx=8192):
-#     data = {}
-#     data['title'] = book_title
-#     data['chapters'] = []
-#     chapter_decks = []
-#     files = os.listdir(input_dir)
-#     for file_name in files:
-#         regex = re.compile(r'chapter', re.IGNORECASE)
-#         if regex.search(file_name) and file_name.endswith('.md'):
-#             text = ''
-#             with open(os.path.join(input_dir, file_name), 'r') as file:
-#                 lines = file.readlines()
-#                 text = ''.join(lines)
-#             tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3-8B")
-#             tokens = tokenizer.tokenize(text)
-#             num_tokens = len(tokens)
-#             if num_tokens > num_ctx:
-#                 split_tokens = [tokens[i:i+(num_ctx-1024)] for i in range(0, num_tokens, (num_ctx-1024))]
-#                 split_texts = [tokenizer.convert_tokens_to_string(split_token) for split_token in split_tokens]
-#             else:
-#                 split_texts = [text]
-#             for chapter_text in split_texts:
-#                 response = ollama.chat(
-#                     model=model_id,
-#                     messages=[
-#                         {'role': 'system', 'content': system_message},
-#                         {'role': 'user', 'content': f'''# **Book**: {book_title}
-#                         Chapter Text: {chapter_text}
-#                         '''},
-#                     ],
-#                     stream=False,
-#                     options={
-#                         'temperature': 0,
-#                         'num_ctx': num_ctx,
-#                     }
-#                 )
-#                 model_response = response['message']['content']
-#                 json_match = re.search(r'```json([\s\S]*?)```', model_response)
-#                 if json_match and json_match.group(1):
-#                     json_content = json_match.group(1).strip()
-#                     content_dict = json.loads(json_content)
-#                     if not data.get('chapter'):
-#                         data['chapter'] = content_dict['chapter']
-#                     if not data.get('cards'):
-#                         data['cards'] = content_dict['cards']
-#                     else:
-#                         data['cards'].extend(content_dict['cards'])
-#             chapter_title = data['chapter']
-#             chapter_deck = create_anki_deck(f'{book_title}' + '::' + f'{chapter_title}')
-#             add_anki_notes(chapter_deck, data['cards'])
-#             chapter_decks.append(chapter_deck)
-#             print(f"Created Anki deck for {chapter_title}/{file_name} with {len(data['cards'])} cards")
-#     genanki.Package(chapter_decks).write_to_file(output_path)
-#     print(f"Successfully created Anki deck at {output_path}")
-
+# flow:
+# upload epub
+# convert epub to markdown
+# create anki deck from epub title and type
+# query gpt-4o for flashcard content for each chapter
+# create anki cards from gpt-4o content
+# upload anki deck
 
 if __name__ == "__main__":
-    # flow:
-    # upload epub
-    # convert epub to markdown
-    # create anki deck from epub title and type
-    # query gpt-4o for flashcard content for each chapter
-    # create anki cards from gpt-4o content
-    # upload anki deck
-
     epub_file = sys.argv[1]
     book_title = os.path.basename(epub_file).replace('.epub', '')
     markdown_dir = f"output/{book_title}-chapters"
@@ -272,9 +216,10 @@ if __name__ == "__main__":
         print("Please provide a valid EPUB file")
         sys.exit(1)
     else:
-        epub_to_markdown(epub_file, markdown_dir)
-        markdown_to_flashcards(book_title, markdown_dir, apkg_output_path)
-        sys.exit(0)
-        # except Exception as e:
-        #     print(f"Error processing EPUB at {epub_file}: \n{e}")
-        #     sys.exit(1)
+        try:
+            epub_to_markdown(epub_file, markdown_dir)
+            markdown_to_flashcards(book_title, markdown_dir, apkg_output_path)
+            sys.exit(0)
+        except Exception as e:
+            print(f"Error processing EPUB at {epub_file}: \n{e}")
+            sys.exit(1)

@@ -11,3 +11,5 @@ vite.config.ts.timestamp-*
 
 backend/input
 backend/output
+
+old/
