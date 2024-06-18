@@ -1,0 +1,9 @@
+Flask
+markdownify
+transformers
+pix2tex
+beautifulsoup4
+ebooklib
+Pillow
+genanki
+ollama

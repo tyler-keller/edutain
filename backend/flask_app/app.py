@@ -1,3 +1,4 @@
+from flask import Flask, request, jsonify, send_file
 from markdownify import markdownify as md
 from transformers import AutoTokenizer
 from pix2tex.cli import LatexOCR
@@ -8,9 +9,16 @@ import genanki
 import ollama
 import random
 import json
+import re
 import sys
 import os
-import re
+
+
+app = Flask(__name__)
+UPLOAD_FOLDER = 'uploads'
+OUTPUT_FOLDER = 'output'
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 
 system_message = '''
@@ -71,10 +79,12 @@ def epub_to_markdown(epub_file, output_dir):
             with open(output_file, "w") as file:
                 file.write(markdown_content)
 
+
 def convert_image_to_latex(image_path):
     img = Image.open(image_path)
     model = LatexOCR()
     return model(img)
+
 
 def convert_markdown_images(markdown_file, latex_output_dir):
     print(f'Converting images in {markdown_file}')
@@ -95,8 +105,10 @@ def convert_markdown_images(markdown_file, latex_output_dir):
     with open(latex_output_file, 'w') as file:
         file.writelines(lines)
 
+
 def get_random_id():
     return int(''.join([str(random.randint(0, 9)) for _ in range(10)]))
+
 
 def create_anki_deck(deck_name):
     deck = genanki.Deck(
@@ -104,6 +116,7 @@ def create_anki_deck(deck_name):
             name=deck_name, 
         )
     return deck
+
 
 def add_anki_notes(anki_deck, cards):
     qa_model = genanki.Model(
@@ -120,7 +133,6 @@ def add_anki_notes(anki_deck, cards):
             'afmt': '{{FrontSide}}<hr id="answer">{{Answer}}',
             },
     ])
-
     for card in cards:
         question = card['front']
         answer = card['back']
@@ -130,6 +142,7 @@ def add_anki_notes(anki_deck, cards):
                 fields=[question, answer]
             )
         )
+
 
 def markdown_to_flashcards(book_title, input_dir, output_path, model_id='llama3', num_ctx=8192):
     data = {'title': book_title, 'chapters': []}
@@ -192,32 +205,29 @@ def markdown_to_flashcards(book_title, input_dir, output_path, model_id='llama3'
     print(f"Successfully created Anki deck at {output_path}")
 
 
-# flow:
-# upload epub
-# convert epub to markdown
-# create anki deck from epub title and type
-# query gpt-4o for flashcard content for each chapter
-# create anki cards from gpt-4o content
-# upload anki deck
+@app.route('/upload', methods=['POST'])
+def upload_epub():
+    if 'file' not in request.files:
+        return jsonify({"error": "No file part"}), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+    if file and file.filename.endswith('.epub'):
+        file_path = os.path.join(UPLOAD_FOLDER, file.filename)
+        file.save(file_path)
+        book_title = os.path.basename(file_path).replace('.epub', '')
+        markdown_dir = os.path.join(OUTPUT_FOLDER, f"{book_title}-chapters")
+        apkg_output_path = os.path.join(OUTPUT_FOLDER, f"{book_title}-anki/{book_title}.apkg")
+        os.makedirs(os.path.dirname(apkg_output_path), exist_ok=True)
+        try:
+            epub_to_markdown(file_path, markdown_dir)
+            markdown_to_flashcards(book_title, markdown_dir, apkg_output_path)
+            return send_file(apkg_output_path, as_attachment=True)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+    else:
+        return jsonify({"error": "Invalid file type"}), 400
+
 
 if __name__ == "__main__":
-    epub_file = sys.argv[1]
-    book_title = os.path.basename(epub_file).replace('.epub', '')
-    markdown_dir = f"output/{book_title}-chapters"
-    apkg_output_path = f"output/{book_title}-anki/{book_title}.apkg"
-    os.makedirs(os.path.dirname(apkg_output_path), exist_ok=True)
-
-    if epub_file is None:
-        print("Please provide the path to the EPUB file")
-        sys.exit(1)
-    elif not epub_file.endswith('.epub'):
-        print("Please provide a valid EPUB file")
-        sys.exit(1)
-    else:
-        try:
-            epub_to_markdown(epub_file, markdown_dir)
-            markdown_to_flashcards(book_title, markdown_dir, apkg_output_path)
-            sys.exit(0)
-        except Exception as e:
-            print(f"Error processing EPUB at {epub_file}: \n{e}")
-            sys.exit(1)
+    app.run(debug=True)
