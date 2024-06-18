@@ -1,55 +1,94 @@
 import ollama
 from transformers import AutoTokenizer
+import os
+import sys
 
-tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3-8B")
 
-with open('output/deep-learning-chapters-latex/chapter005.md', 'r') as file:
-  lines = file.readlines()
-  text = ''.join(lines)
-  tokens = tokenizer.tokenize(text)
-  num_tokens = len(tokens)
-  print(f"Number of tokens in your text: {num_tokens}")
+system_message = '''You are an AI assistant that summarizes book content into flashcards.
+The user will give you pieces of the book in an unclean markdown format. 
+You are to take those pieces, identify key topics and return the most important concepts in flashcard format.
+Only output the formatted flashcards. Your responses should be in the following format:
+```json
+[
+    {
+        "front": "What is the capital of France?",
+        "back": "Paris"
+    },
+    {
+        "front": "What is the capital of Spain?",
+        "back": "Madrid"
+    }
+]
+```
+'''
 
-  split_tokens = [tokens[i:i+6144] for i in range(0, num_tokens, 6144)]
 
-  for i, split_token in enumerate(split_tokens):
+def get_llama3_gradient_flashcards(text, book_title, chapter_title):
+      stream = ollama.chat(
+          model='llama3-gradient:latest',
+          messages=[
+              {'role': 'system', 'content': system_message},
+              {'role': 'user', 'content': f'''# **Book**: {book_title}
+              ## **Chapter**: {chapter_title}
+              Chapter Text: 
+              {text}
+              '''},
+          ],
+          stream=True,
+          options={
+              'temperature': 0.01,
+              'num_ctx': 100_000,
+          }
+      )
 
-    # decode the tokens
-    chapter_text = tokenizer.decode(tokenizer.convert_tokens_to_ids(split_token))
+      for chunk in stream:
+          print(chunk['message']['content'], end='', flush=True)
 
-    stream = ollama.chat(
-        model='llama3',
-        messages=[
-          {'role': 'system', 'content': '''You are an AI assistant that summarizes book content into flashcards. 
-           The user will give pieces of the book. You are to take those pieces and identify key topics. 
-           Only output the chapter\'s content in YAML formatted flashcards. They should be in the format of:
-           ```yaml
-           - front: "What is the capital of France?"
-             back: "Paris"
-           - front: "What is the capital of Spain?"
-             back: "Madrid"
-           ```
-           '''},
-          {'role': 'user', 'content': f'''# **Book**: Deep Learning
-           ## **Chapter**: Machine Learning Basics
-           **Text**: {chapter_text}'''},
-        ],
-        stream=True,
-    )
 
-    for chunk in stream:
-      print(chunk['message']['content'], end='', flush=True)
 
-# from openai import OpenAI
-# client = OpenAI()
+def get_llama3_flashcards(text, book_title, chapter_title):
+    tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3-8B")
+    llama3_context = 8048
 
-# completion = client.chat.completions.create(
-#   model="gpt-3.5-turbo",
-#   response_format="json",
-#   messages=[
-#     {"role": "system", "content": "You are an AI assistant helping a user retain the knowledge that they're learning in their book. The student asks you for help with their homework. Here is the student's question:"},
-#     {"role": "user", "content": "Compose a poem that explains the concept of recursion in programming."}
-#   ]
-# )
+    tokens = tokenizer.tokenize(text)
+    num_tokens = len(tokens)
+    print(f"Number of tokens in your text: {num_tokens}")
 
-# print(completion.choices[0].message)
+    split_tokens = [tokens[i:i+(llama3_context-1024)] for i in range(0, num_tokens, (llama3_context-1024))]
+    split_texts = [tokenizer.convert_tokens_to_string(split_token) for split_token in split_tokens]
+
+    for i, chapter_text in enumerate(split_texts):
+        response = ollama.chat(
+            model='llama3',
+            messages=[
+                {'role': 'system', 'content': system_message},
+                {'role': 'user', 'content': f'''# **Book**: {book_title}
+                ## **Chapter**: {chapter_title}
+                **Text**: {chapter_text}'''},
+            ],
+            stream=True,
+            options={
+                'temperature': 0,
+                'num_ctx': llama3_context,
+            }
+        )
+
+        print(response['message']['content'])
+
+        
+
+
+if __name__ == '__main__':
+  book_title = 'deep-learning'
+  chapter_title = 'chapter-1'
+
+  input_dir = 'output/deep-learning-chapters'
+  output_dir = 'output/deep-learning-llama3'
+
+  files = os.listdir(input_dir)
+
+  for file_name in files:
+    with open(f'{input_dir}/{file_name}', 'r') as file:
+      lines = file.readlines()
+      text = ''.join(lines)
+      get_llama3_flashcards(text, book_title, chapter_title)

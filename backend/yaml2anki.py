@@ -1,6 +1,7 @@
 import genanki
 import yaml
 import random
+import os
 
 def open_yaml_file(yaml_file):
     with open(yaml_file, 'r') as file:
@@ -44,14 +45,18 @@ def add_anki_notes(anki_deck, flashcards):
         )
     
 if __name__ == '__main__':
-    data = open_yaml_file('output/deep-learning-anki/deep-learning-v1.yml')
-    deck_name = data['title']
-    chapters = data['chapters']
-    chapter_decks = []
-    for chapter in chapters:
-        chapter_deck = create_anki_deck(f'{deck_name}' + '::' + f'Chapter-{chapter["chapter"]}')
-        add_anki_notes(chapter_deck, chapter['questions'])
-        chapter_decks.append(chapter_deck)
-    genanki.Package(chapter_decks).write_to_file('output/deep-learning-anki/deep-learning.apkg')
+    dir = 'output/deep-learning-gemini'
+    files = os.listdir(dir)
+    for file in files:
+        print(file)
+        # data = open_yaml_file(f'{dir}/deep-learning-v1.yml')
+        # deck_name = data['title']
+        # chapters = data['chapters']
+        # chapter_decks = []
+        # for chapter in chapters:
+        #     chapter_deck = create_anki_deck(f'{deck_name}' + '::' + f'Chapter-{chapter["chapter"]}')
+        #     add_anki_notes(chapter_deck, chapter['questions'])
+        #     chapter_decks.append(chapter_deck)
+        # genanki.Package(chapter_decks).write_to_file('output/deep-learning-anki/deep-learning.apkg')
 
 # f"{subdeck}::{str(index + 1).zfill(2)} {deck}"

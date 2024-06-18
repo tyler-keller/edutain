@@ -1,34 +1,53 @@
-import re
-import os
-import sys
-from ebooklib import epub
 from markdownify import markdownify as md
-from bs4 import BeautifulSoup
-from PIL import Image
+from transformers import AutoTokenizer
 from pix2tex.cli import LatexOCR
-import genanki
-import random
-from openai import OpenAI
+from bs4 import BeautifulSoup
+from ebooklib import epub
+from PIL import Image
 import tiktoken
+import genanki
+import ollama
+import random
+import yaml
+import json
+import sys
+import os
+import re
 
-# flow:
-# upload epub
-# convert epub to markdown
-# convert images to latex
-# create anki deck from epub title and type
-# query gpt-4o for flashcard content for each chapter
-# create anki cards from gpt-4o content
-# upload anki deck
+
+system_message = '''
+You are an AI assistant that summarizes book content into flashcards.
+The user will give you pieces of the book in an unclean markdown format. 
+You are to take those pieces, identify key topics and return the most important concepts in flashcard format.
+Only output the formatted flashcards and their respective chapter title. 
+Your responses should be in the following format:
+```json
+{
+    "chapter": "Introduction",
+    "cards":
+    [
+        {
+            "front": "What is the capital of France?",
+            "back": "Paris"
+        },
+        {
+            "front": "What is the capital of Spain?",
+            "back": "Madrid"
+        }
+    ]
+}
+```
+'''
+
 
 def epub_to_markdown(epub_file, output_dir):
     os.makedirs(output_dir, exist_ok=True)
     book = epub.read_epub(epub_file)
-    base_path = os.path.dirname(epub_file)
     for item in book.get_items():
         if isinstance(item, epub.EpubHtml):
-            chapter_title = item.get_name().strip().replace(".xhtml", "")
+            section_title = item.get_name().strip().replace(".xhtml", "")
             for x in ['/', '_']:
-                chapter_title = chapter_title.replace(x, '-')
+                section_title = section_title.replace(x, '-')
             content = item.get_content()
             soup = BeautifulSoup(content, 'html.parser')
             for img in soup.find_all('img'):
@@ -50,7 +69,7 @@ def epub_to_markdown(epub_file, output_dir):
                 except Exception as e:
                     print(f"Error extracting images: {e} {img_src}")
             markdown_content = md(str(soup))
-            output_file = os.path.join(output_dir, f"{chapter_title}.md")
+            output_file = os.path.join(output_dir, f"{section_title}.md")
             with open(output_file, "w") as file:
                 file.write(markdown_content)
 
@@ -78,64 +97,174 @@ def convert_markdown_images(markdown_file, latex_output_dir):
     with open(latex_output_file, 'w') as file:
         file.writelines(lines)
 
-def create_anki_deck(deck_name, deck_description):
+def get_random_id():
+    return int(''.join([str(random.randint(0, 9)) for _ in range(10)]))
+
+def create_anki_deck(deck_name):
     deck = genanki.Deck(
-            model_id=str([random.randint(0, 9) for _ in range(30)]), 
+            deck_id=get_random_id(),
             name=deck_name, 
-            description=deck_description
         )
     return deck
 
-def create_flashcards(book_title, chapter_title, chapter_text, model_id='gpt-3.5-turbo'):
-    model_to_context_map = {
-        'gpt-3.5-turbo': 16384,
-        'gpt-3.5-turbo-0125': 16384,
-        'gpt-4-turbo': 128_000,
-        'gpt-4o': 128_000,
-    }
-    encoding = tiktoken.encoding_for_model('gpt-3.5-turbo')
-    tokens = encoding.encode(chapter_text)
-    num_tokens = len(tokens)
-    chunk_size = model_to_context_map[model_id] - 2048
-    split_tokens = [tokens[i:i+chunk_size] for i in range(0, num_tokens, chunk_size)]
-    flashcard_data = []
-    for i, token_chunk in enumerate(split_tokens):
-        chapter_text = encoding.decode(token_chunk)
-        client = OpenAI()
-        completion = client.chat.completions.create(
-        model=model_id,
-        response_format="json",
-        messages=[
-            {'role': 'system', 'content': '''You are an AI assistant that summarizes book content into flashcards. 
-            The user will give you pieces of the book in an unclean markdown format. You are to take those pieces, identify key topics and return the most important concepts in flashcard format. 
-            Only output the formatted flashcards. Your responses should be in the following format:
-            ```json
-                [
-                    {
-                        "front": "What is the capital of France?",
-                        "back": "Paris"
-                    },
-                    {
-                        "front": "What is the capital of Spain?",
-                        "back": "Madrid"
-                    }
-                ]
-            ```
-            '''},
-            {'role': 'user', 'content': f'''# **Book**: {book_title}
-            ## **Chapter**: {chapter_title}
-            **Text ({i} of {len(split_tokens)})**: {chapter_text}'''},
-        ]
-        )
-        flashcard_data.append(completion.choices[0].message['content'])
-    print(f"Flashcard data: {flashcard_data}")
-    return flashcard_data
+def add_anki_notes(anki_deck, cards):
+    qa_model = genanki.Model(
+        1607392319,
+        'Simple Model',
+        fields=[
+            {'name': 'Question'},
+            {'name': 'Answer'},
+        ],
+        templates=[
+            {
+            'name': 'Card',
+            'qfmt': '{{Question}}',
+            'afmt': '{{FrontSide}}<hr id="answer">{{Answer}}',
+            },
+    ])
 
-def create_anki_notes(anki_deck):
-    pass
+    for card in cards:
+        question = card['front']
+        answer = card['back']
+        anki_deck.add_note(
+            genanki.Note(
+                model=qa_model,
+                fields=[question, answer]
+            )
+        )
+
+def markdown_to_flashcards(book_title, input_dir, output_path, model_id='llama3', num_ctx=8192):
+    data = {'title': book_title, 'chapters': []}
+    chapter_decks = []
+    files = os.listdir(input_dir)
+    
+    for file_name in files:
+        regex = re.compile(r'chapter', re.IGNORECASE)
+        if regex.search(file_name) and file_name.endswith('.md'):
+            with open(os.path.join(input_dir, file_name), 'r') as file:
+                text = file.read()
+                
+            tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3-8B")
+            tokens = tokenizer.tokenize(text)
+            num_tokens = len(tokens)
+            
+            if num_tokens > num_ctx:
+                split_tokens = [tokens[i:i+(num_ctx-1024)] for i in range(0, num_tokens, (num_ctx-1024))]
+                split_texts = [tokenizer.convert_tokens_to_string(split_token) for split_token in split_tokens]
+            else:
+                split_texts = [text]
+                
+            for chapter_text in split_texts:
+                response = ollama.chat(
+                    model=model_id,
+                    messages=[
+                        {'role': 'system', 'content': system_message},
+                        {'role': 'user', 'content': f'''# **Book**: {book_title}
+                        Chapter Text: {chapter_text}
+                        '''},
+                    ],
+                    stream=False,
+                    options={
+                        'temperature': 0,
+                        'num_ctx': num_ctx,
+                    }
+                )
+                model_response = response['message']['content']
+                json_match = re.search(r'```json([\s\S]*?)```', model_response)
+                
+                if json_match and json_match.group(1):
+                    json_content = json_match.group(1).strip()
+                    content_dict = json.loads(json_content)
+                    
+                    chapter_title = content_dict['chapter']
+                    chapter_cards = content_dict['cards']
+                    
+                    data['chapters'].append({
+                        'chapter': chapter_title,
+                        'cards': chapter_cards
+                    })
+                    
+                    chapter_deck = create_anki_deck(f'{book_title}::Chapter {chapter_title}')
+                    add_anki_notes(chapter_deck, chapter_cards)
+                    chapter_decks.append(chapter_deck)
+                    
+                    print(f"Created Anki deck for Chapter {chapter_title} with {len(chapter_cards)} cards")
+    
+    genanki.Package(chapter_decks).write_to_file(output_path)
+    print(f"Successfully created Anki deck at {output_path}")
+
+
+# def markdown_to_flashcards(book_title, input_dir, output_path, model_id='llama3', num_ctx=8192):
+#     data = {}
+#     data['title'] = book_title
+#     data['chapters'] = []
+#     chapter_decks = []
+#     files = os.listdir(input_dir)
+#     for file_name in files:
+#         regex = re.compile(r'chapter', re.IGNORECASE)
+#         if regex.search(file_name) and file_name.endswith('.md'):
+#             text = ''
+#             with open(os.path.join(input_dir, file_name), 'r') as file:
+#                 lines = file.readlines()
+#                 text = ''.join(lines)
+#             tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3-8B")
+#             tokens = tokenizer.tokenize(text)
+#             num_tokens = len(tokens)
+#             if num_tokens > num_ctx:
+#                 split_tokens = [tokens[i:i+(num_ctx-1024)] for i in range(0, num_tokens, (num_ctx-1024))]
+#                 split_texts = [tokenizer.convert_tokens_to_string(split_token) for split_token in split_tokens]
+#             else:
+#                 split_texts = [text]
+#             for chapter_text in split_texts:
+#                 response = ollama.chat(
+#                     model=model_id,
+#                     messages=[
+#                         {'role': 'system', 'content': system_message},
+#                         {'role': 'user', 'content': f'''# **Book**: {book_title}
+#                         Chapter Text: {chapter_text}
+#                         '''},
+#                     ],
+#                     stream=False,
+#                     options={
+#                         'temperature': 0,
+#                         'num_ctx': num_ctx,
+#                     }
+#                 )
+#                 model_response = response['message']['content']
+#                 json_match = re.search(r'```json([\s\S]*?)```', model_response)
+#                 if json_match and json_match.group(1):
+#                     json_content = json_match.group(1).strip()
+#                     content_dict = json.loads(json_content)
+#                     if not data.get('chapter'):
+#                         data['chapter'] = content_dict['chapter']
+#                     if not data.get('cards'):
+#                         data['cards'] = content_dict['cards']
+#                     else:
+#                         data['cards'].extend(content_dict['cards'])
+#             chapter_title = data['chapter']
+#             chapter_deck = create_anki_deck(f'{book_title}' + '::' + f'{chapter_title}')
+#             add_anki_notes(chapter_deck, data['cards'])
+#             chapter_decks.append(chapter_deck)
+#             print(f"Created Anki deck for {chapter_title}/{file_name} with {len(data['cards'])} cards")
+#     genanki.Package(chapter_decks).write_to_file(output_path)
+#     print(f"Successfully created Anki deck at {output_path}")
+
 
 if __name__ == "__main__":
+    # flow:
+    # upload epub
+    # convert epub to markdown
+    # create anki deck from epub title and type
+    # query gpt-4o for flashcard content for each chapter
+    # create anki cards from gpt-4o content
+    # upload anki deck
+
     epub_file = sys.argv[1]
+    book_title = os.path.basename(epub_file).replace('.epub', '')
+    markdown_dir = f"output/{book_title}-chapters"
+    apkg_output_path = f"output/{book_title}-anki/{book_title}.apkg"
+    os.makedirs(os.path.dirname(apkg_output_path), exist_ok=True)
+
     if epub_file is None:
         print("Please provide the path to the EPUB file")
         sys.exit(1)
@@ -143,13 +272,9 @@ if __name__ == "__main__":
         print("Please provide a valid EPUB file")
         sys.exit(1)
     else:
-        output_dir = f"output/{os.path.basename(epub_file).replace('.epub', '')}-chapters"
-        epub_to_markdown(epub_file, output_dir)
-        latex_output_dir = f"{output_dir}-latex"
-        for md_file in os.listdir(output_dir):
-            md_file_path = os.path.join(output_dir, md_file)
-            if 'chapter' in md_file_path.split('/')[-1]:
-                convert_markdown_images(md_file_path, latex_output_dir)
-        deck_name = os.path.basename(epub_file).replace('.epub', '')
-
-        # create_flashcards("Deep Learning", "Chapter Title", "Chapter Text")
+        epub_to_markdown(epub_file, markdown_dir)
+        markdown_to_flashcards(book_title, markdown_dir, apkg_output_path)
+        sys.exit(0)
+        # except Exception as e:
+        #     print(f"Error processing EPUB at {epub_file}: \n{e}")
+        #     sys.exit(1)

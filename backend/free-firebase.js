@@ -23,7 +23,7 @@ const model = getGenerativeModel(vertexAI, {
     systemInstruction: `You are an AI assistant that summarizes book content into flashcards. 
     The user will give a chapter of the book at a time. 
     You are to take those chapters, identify key topics and generate flashcard material. 
-    You will come up w/ a name for the chapter given the content, most of the time the chapter text will contain the chapter title. 
+    You will come up w/ a title for the chapter given the content, most of the time the start of the chapter text will contain the title. 
     You will only output YAML formatted flashcards. Output 5-10 flashcards per chapter depending on the content.
     Your flashcard YAML content should be in the following format:
     \`\`\`yaml
@@ -68,15 +68,17 @@ async function processFile(filePath, outputDir) {
 }
 
 async function run() {
-  const directoryPath = path.resolve('./output/deep-learning-chapters/');
-  const outputDir = path.resolve('./output/deep-learning-gemini/');
+  const directoryPath = path.resolve('./output/intelligence-chapters/');
+  const outputDir = path.resolve('./output/intelligence-gemini/');
   if (!fs.existsSync(outputDir)) {
     fs.mkdirSync(outputDir, { recursive: true });
   }
   const files = fs.readdirSync(directoryPath);
 
   for (const file of files) {
-      if (file.includes('chapter') && file.endsWith('.md')) {
+      // matches w/ any file w/ chapter (case insensitive) in the name
+      const regex = new RegExp(/chapter/i)
+      if (regex.test(file) && file.endsWith('.md')) {
           const filePath = path.join(directoryPath, file);
           await processFile(filePath, outputDir);
       }
