@@ -149,57 +149,58 @@ def markdown_to_flashcards(book_title, input_dir, output_path, model_id='llama3'
     chapter_decks = []
     files = os.listdir(input_dir)
     
+    chapter_num = 1
     for file_name in files:
         regex = re.compile(r'chapter', re.IGNORECASE)
-        if regex.search(file_name) and file_name.endswith('.md'):
-            with open(os.path.join(input_dir, file_name), 'r') as file:
-                text = file.read()
-                
-            tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3-8B")
-            tokens = tokenizer.tokenize(text)
-            num_tokens = len(tokens)
+        if not (regex.search(file_name) and file_name.endswith('.md')):
+            continue
+        chapter_num += 1
+        with open(os.path.join(input_dir, file_name), 'r') as file:
+            text = file.read()
+        tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3-8B")
+        tokens = tokenizer.tokenize(text)
+        num_tokens = len(tokens)
+        if num_tokens > num_ctx:
+            split_tokens = [tokens[i:i+(num_ctx-1024)] for i in range(0, num_tokens, (num_ctx-1024))]
+            split_texts = [tokenizer.convert_tokens_to_string(split_token) for split_token in split_tokens]
+        else:
+            split_texts = [text]
+        for chapter_text in split_texts:
+            print(f"Processing chapter {chapter_num} with {len(chapter_text)} tokens")
+            response = ollama.chat(
+                model=model_id,
+                messages=[
+                    {'role': 'system', 'content': system_message},
+                    {'role': 'user', 'content': f'''# **Book**: {book_title}
+                    Chapter Text: {chapter_text}
+                    '''},
+                ],
+                stream=False,
+                options={
+                    'temperature': 0,
+                    'num_ctx': num_ctx,
+                }
+            )
+            model_response = response['message']['content']
+            json_match = re.search(r'```json([\s\S]*?)```', model_response)
             
-            if num_tokens > num_ctx:
-                split_tokens = [tokens[i:i+(num_ctx-1024)] for i in range(0, num_tokens, (num_ctx-1024))]
-                split_texts = [tokenizer.convert_tokens_to_string(split_token) for split_token in split_tokens]
-            else:
-                split_texts = [text]
+            if json_match and json_match.group(1):
+                json_content = json_match.group(1).strip()
+                content_dict = json.loads(json_content)
                 
-            for chapter_text in split_texts:
-                response = ollama.chat(
-                    model=model_id,
-                    messages=[
-                        {'role': 'system', 'content': system_message},
-                        {'role': 'user', 'content': f'''# **Book**: {book_title}
-                        Chapter Text: {chapter_text}
-                        '''},
-                    ],
-                    stream=False,
-                    options={
-                        'temperature': 0,
-                        'num_ctx': num_ctx,
-                    }
-                )
-                model_response = response['message']['content']
-                json_match = re.search(r'```json([\s\S]*?)```', model_response)
+                chapter_title = content_dict['chapter']
+                chapter_cards = content_dict['cards']
                 
-                if json_match and json_match.group(1):
-                    json_content = json_match.group(1).strip()
-                    content_dict = json.loads(json_content)
-                    
-                    chapter_title = content_dict['chapter']
-                    chapter_cards = content_dict['cards']
-                    
-                    data['chapters'].append({
-                        'chapter': chapter_title,
-                        'cards': chapter_cards
-                    })
-                    
-                    chapter_deck = create_anki_deck(f'{book_title}::Chapter {chapter_title}')
-                    add_anki_notes(chapter_deck, chapter_cards)
-                    chapter_decks.append(chapter_deck)
-                    
-                    print(f"Created Anki deck for Chapter {chapter_title} with {len(chapter_cards)} cards")
+                data['chapters'].append({
+                    'chapter': chapter_title,
+                    'cards': chapter_cards
+                })
+                
+                chapter_deck = create_anki_deck(f'{book_title}::({chapter_num}) {chapter_title}')
+                add_anki_notes(chapter_deck, chapter_cards)
+                chapter_decks.append(chapter_deck)
+                
+                print(f"Created Anki deck for Chapter {chapter_title} with {len(chapter_cards)} cards")
     
     genanki.Package(chapter_decks).write_to_file(output_path)
     print(f"Successfully created Anki deck at {output_path}")
@@ -221,7 +222,7 @@ def upload_epub():
         os.makedirs(os.path.dirname(apkg_output_path), exist_ok=True)
         try:
             epub_to_markdown(file_path, markdown_dir)
-            markdown_to_flashcards(book_title, markdown_dir, apkg_output_path)
+            markdown_to_flashcards(book_title, markdown_dir, apkg_output_path, model_id='llama3-gradient:latest', num_ctx=100_000)
             return send_file(apkg_output_path, as_attachment=True)
         except Exception as e:
             return jsonify({"error": str(e)}), 500
