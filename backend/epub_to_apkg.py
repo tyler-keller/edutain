@@ -21,7 +21,7 @@ Only output the formatted flashcards and their respective chapter title.
 Your responses should be in the following format:
 ```json
 {
-    "chapter": "Introduction",
+    "chapter": "Capitals of Europe",
     "cards":
     [
         {

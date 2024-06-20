@@ -15,3 +15,5 @@ backend/output
 old/
 
 uploads/
+
+serviceAccountKey.json
