@@ -26,11 +26,11 @@ Come back later and do some spaced repetition review.
 
 Fin.
 
+<!--
 ## Problems:
-
 There is no simple flag that designates whether an EPUB HTML DOC is a chapter or not.
 
-So, I'm getting wild outputs when parsing the EPUBs. For example:
+ So, I'm getting wild outputs when parsing the EPUBs. For example:
 [('Gödel, Escher, Bach: An Eternal Golden Braid', {})]
 id1114 True 116
 id1113 True 93
@@ -333,7 +333,7 @@ dtype: float64
 
 So, I'm going to have to use the char count to determine as well as some regex that catches common namings. But, checkout 'A Brief History of Intelligence'. Some of those chapters have suffixes... and the char count is invalid. 
 
-I'll need to find a way to split these chapters up effectively for ingestion.
+I'll need to find a way to split these chapters up effectively for ingestion. -->
 
 ## Goal:
 
