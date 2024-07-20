@@ -4,7 +4,7 @@
 
 People be watching TikTok/YouTube and not be learning things.
 
-In the age of ***AI*** (aYy-EyE...), it's super easy to fall into learning -- malaise.
+In the age of ***AI*** (aYy-EyE...), it's super easy to fall into learning... malaise.
 
 ## Solution:
 
